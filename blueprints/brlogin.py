@@ -1,5 +1,6 @@
 import base64
 import hashlib
+import hmac
 import http.client
 import json
 import os
@@ -33,6 +34,33 @@ def ratelimit_handler(e):
     return jsonify(error="Rate limit exceeded"), 429
 
 
+def is_internal_broker_auth_request():
+    expected_token = os.getenv("OPENALGO_INTERNAL_TOKEN", "").strip()
+    if not expected_token or request.method != "POST":
+        return False
+
+    auth_header = request.headers.get("Authorization", "")
+    bearer_prefix = "Bearer "
+    provided_token = (
+        auth_header[len(bearer_prefix):].strip()
+        if auth_header.startswith(bearer_prefix)
+        else request.headers.get("X-OpenAlgo-Internal-Token", "").strip()
+    )
+    return bool(provided_token) and hmac.compare_digest(provided_token, expected_token)
+
+
+def set_internal_broker_user():
+    from database.user_db import find_user_by_username
+
+    admin_user = find_user_by_username()
+    if not admin_user:
+        logger.error("Internal broker auth requested but no admin user exists")
+        return False
+    session["user"] = admin_user.username
+    logger.info(f"Internal broker auth using admin user: {admin_user.username}")
+    return True
+
+
 @brlogin_bp.route("/<broker>/callback", methods=["POST", "GET"])
 @limiter.limit(LOGIN_RATE_LIMIT_MIN)
 @limiter.limit(LOGIN_RATE_LIMIT_HOUR)
@@ -40,9 +68,13 @@ def broker_callback(broker, para=None):
     logger.info(f"Broker callback initiated for: {broker}")
     logger.debug(f"Session contents: {dict(session)}")
     logger.info(f"Session has user key: {'user' in session}")
+    internal_broker_auth = is_internal_broker_auth_request()
 
     # Special handling for brokers that come from external auth and might lose session
-    if broker in ("compositedge", "rmoney", "iiflcapital") and "user" not in session:
+    if internal_broker_auth and "user" not in session:
+        if not set_internal_broker_user():
+            return jsonify({"status": "error", "message": "No OpenAlgo admin user found."}), 500
+    elif broker in ("compositedge", "rmoney", "iiflcapital") and "user" not in session:
         # Session will be established after successful auth token validation
         logger.info(f"{broker} callback without session - will establish session after auth")
     # Special handling for mstock POST - check session but provide better error instead of redirect
