@@ -181,25 +181,34 @@ def _create_http_client() -> httpx.Client:
         # Disable HTTP/2 in standalone/Docker environments to avoid protocol negotiation issues
         http2_enabled = not is_standalone
 
-        client = httpx.Client(
-            http2=http2_enabled,  # Disable HTTP/2 in standalone mode, enable in integrated mode
-            http1=True,  # Always enable HTTP/1.1 for compatibility
-            timeout=120.0,  # Increased timeout for large historical data requests
-            limits=httpx.Limits(
+        proxy_url = os.environ.get("ALGOIP_PROXY_URL", "").strip() or None
+        client_kwargs = {
+            "http2": http2_enabled,  # Disable HTTP/2 in standalone mode, enable in integrated mode
+            "http1": True,  # Always enable HTTP/1.1 for compatibility
+            "timeout": 120.0,  # Increased timeout for large historical data requests
+            "limits": httpx.Limits(
                 max_keepalive_connections=40,  # Increased from 20 for multi-strategy environments
                 max_connections=100,  # Increased from 50 for 10+ concurrent strategies
                 keepalive_expiry=30.0,  # Reduced from 120s to recycle stale connections faster
             ),
             # Add verify parameter to handle SSL/TLS issues in standalone mode
-            verify=True,  # Can be set to False for debugging SSL issues (not recommended for production)
+            "verify": True,  # Can be set to False for debugging SSL issues (not recommended for production)
             # Add event hooks for latency tracking
-            event_hooks={"request": [log_request], "response": [log_response]},
+            "event_hooks": {"request": [log_request], "response": [log_response]},
+        }
+        if proxy_url:
+            client_kwargs["proxy"] = proxy_url
+
+        client = httpx.Client(
+            **client_kwargs
         )
 
         if is_standalone:
             logger.info("Running in standalone mode - HTTP/2 disabled for compatibility")
         else:
             logger.info("Running in integrated mode - HTTP/2 enabled for optimal performance")
+        if proxy_url:
+            logger.info("HTTP client routing broker requests through configured proxy")
 
         return client
 

@@ -30,6 +30,8 @@ services:
       - OMP_NUM_THREADS=${OMP_NUM_THREADS:-2}
       - MKL_NUM_THREADS=${MKL_NUM_THREADS:-2}
       - NUMEXPR_NUM_THREADS=${NUMEXPR_NUM_THREADS:-2}
+      # Optional static-egress proxy for broker APIs that enforce IP whitelisting
+      - ALGOIP_PROXY_URL=${ALGOIP_PROXY_URL:-}
       # Numba JIT compiler settings
       - NUMBA_NUM_THREADS=${NUMBA_NUM_THREADS:-2}
       # Strategy memory limit (MB) - reduce for low-memory containers
