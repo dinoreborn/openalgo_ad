@@ -247,6 +247,16 @@ Most testing is currently manual via:
 
 ### Building for Production
 
+### Trading Desk Production Guardrail
+
+The NSE Trading Desk production reference is `F:\Trading Desk Production` on
+branch `stable/vps-prod-2026-06-29`. This OpenAlgo/Kotak repo is connected to
+the live order path, but ordinary OpenAlgo work must not push, deploy, rebuild,
+restart, or otherwise change Trading Desk production or the VPS Trading Desk
+services. Treat `F:\Swing Trading\trading-desk` as testing/stage only. A Trading
+Desk production change requires a separate explicit production job requested by
+the user.
+
 You typically do **not** need to build the frontend yourself for production deploys — see the CI/CD section below. Build only when actively editing React code:
 
 ```bash
